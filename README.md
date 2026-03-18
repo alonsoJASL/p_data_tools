@@ -1,0 +1,226 @@
+# Polyp Data Tools
+
+Utilities for manipulating and merging polyp study data tables with composite key matching and ID normalization.
+
+## Features
+
+- **Composite key matching**: Match rows across datasets using subject + polyp ID
+- **ID normalization**: Handles polyp ID format variations (X-XXX-XXX → X-XXX-XX)
+- **Missed polyp identification**: Filter polyps with letter-based IDs (1-001-A, 1-001-B, etc.)
+- **Column interleaving**: Precise column slicing and merging for complex data integration
+- **Format flexibility**: Works with CSV and Excel files (.csv, .xlsx, .xls)
+
+## Installation
+
+### Basic Setup
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd polyp-data-tools
+
+conda create -n polyp-data-tools python=3.10 -y 
+
+# Install package
+pip install -e .
+```
+
+### Optional: Excel Support
+
+Excel file support requires `openpyxl`. If not installed, scripts automatically fall back to CSV output.
+
+```bash
+pip install -e ".[excel]"
+```
+
+### Development Setup
+
+```bash
+pip install -e ".[dev]"
+```
+
+## Scripts
+
+### 1. merge_filtered_raw.py
+
+Matches and merges filtered (trustworthy) and raw (less trustworthy) datasets by composite key, then performs specific column interleaving.
+
+**Purpose**: Combine validated data with raw measurements while preserving data quality and row order.
+
+**Workflow**:
+1. Loads filtered and raw files
+2. Builds composite keys (subject + polyp_id) for both datasets
+3. Filters raw to only rows present in filtered
+4. Reorders raw to match filtered row order
+5. Slices and interleaves columns: `[filtered: A-K | raw: U | filtered: L-end | raw: V-Y]`
+6. Saves merged result
+
+**Usage**:
+
+```bash
+python scripts/merge_filtered_raw.py \
+    --filtered-file path/to/filtered.csv \
+    --raw-file path/to/raw.csv \
+    --output-file merged_output.csv
+```
+
+**Key assumptions**:
+- Filtered file has columns: `subject_id` (col 0), `polyp_id` (col 1)
+- Raw file has columns: `subject` (col 1), `id` (col 0)
+- Polyp IDs may have format mismatches (X-XXX-XXX vs X-XXX-XX)
+
+### 2. identify_missed.py
+
+Filters a dataset to only include "missed polyps" - polyps identified after initial examination, indicated by a letter in the third ID segment.
+
+**Purpose**: Extract missed polyps for separate analysis.
+
+**Workflow**:
+1. Loads input file
+2. Filters rows where polyp_id third segment is a letter (not numeric)
+3. Saves filtered result
+
+**Usage**:
+
+```bash
+# Default: looks for 'id' column
+python scripts/identify_missed.py \
+    --input-file path/to/data.csv \
+    --output-file missed_polyps.csv
+
+# Custom column name
+python scripts/identify_missed.py \
+    --input-file path/to/data.csv \
+    --output-file missed_polyps.csv \
+    --polyp-id-column polyp_id
+```
+
+**Examples**:
+- `1-001-A` → Missed polyp (included)
+- `1-001-B` → Missed polyp (included)
+- `1-001-001` → Not missed (excluded)
+- `1-001-01` → Not missed (excluded)
+
+## Architecture
+
+This project follows the **Jose Alonso Developer's Manifest** principles:
+
+### Structure
+
+```
+polyp-data-tools/
+├── src/polyp_data_tools/    # Shared utilities (installable package)
+│   ├── config.py            # Logging configuration
+│   ├── data_utils.py        # Polyp ID logic (stateless)
+│   └── io_utils.py          # File I/O operations
+└── scripts/                 # Standalone executables
+    ├── merge_filtered_raw.py
+    └── identify_missed.py
+```
+
+### Design Principles
+
+**1. Radical Separation of Orchestration and Logic**
+- `scripts/` = Orchestration (file I/O, workflow, logging)
+- `src/polyp_data_tools/` = Logic (stateless transformations)
+
+**2. Stateless Logic Engines**
+- `normalize_polyp_id()`: ID transformation, no side effects
+- `build_composite_key()`: Pure key construction
+- `filter_raw_by_filtered_keys()`: Deterministic filtering
+
+**3. Explicit Contracts**
+- Functions use clear type hints
+- Composite keys use structured format: `"subject::polyp_id"`
+
+**4. No Hidden Dependencies**
+- All file paths passed as arguments
+- No global state or singletons
+- Logging configured explicitly
+
+## Development
+
+### Code Style
+
+- Line length: 100 characters
+- Formatter: Black
+- Linter: Ruff
+- Type hints required for all functions
+
+```bash
+# Format code
+black src/ scripts/
+
+# Lint code
+ruff check src/ scripts/
+```
+
+### Adding New Scripts
+
+1. Create script in `scripts/` directory
+2. Import utilities from `polyp_data_tools`
+3. Follow pattern:
+   ```python
+   from polyp_data_tools import setup_logging, load_file, save_file
+   import logging
+   
+   setup_logging()
+   logger = logging.getLogger(__name__)
+   ```
+4. Keep script-specific logic in the script
+5. Extract reusable logic to `data_utils.py` only after 3+ use cases
+
+## Dependencies
+
+### Core
+- Python ≥ 3.10
+- pandas ≥ 2.0.0
+- numpy ≥ 1.24.0
+
+### Optional
+- openpyxl ≥ 3.1.0 (for Excel file support)
+
+### Development
+- pytest ≥ 7.0.0
+- black ≥ 23.0.0
+- ruff ≥ 0.1.0
+
+## Troubleshooting
+
+### Excel files not working
+
+If you see `ModuleNotFoundError: No module named 'openpyxl'`:
+
+```bash
+pip install openpyxl
+```
+
+Or use CSV format instead:
+
+```bash
+python scripts/merge_filtered_raw.py \
+    --filtered-file data.csv \
+    --raw-file raw.csv \
+    --output-file output.csv  # CSV instead of .xlsx
+```
+
+### Unmatched keys warning
+
+If you see `UNMATCHED: X keys in filtered not found in raw`:
+- Check that subject + polyp_id combinations exist in both files
+- Verify column names match expectations (`subject_id`, `polyp_id` vs `subject`, `id`)
+- Check for ID format inconsistencies
+
+### Row count mismatch error
+
+If `slice_and_interleave_columns` fails:
+- Ensure filtered and raw files have matching rows after filtering
+- Check validation output for unmatched keys
+
+## License
+
+[Add your license here]
+
+## Contact
+
+Jose Alonso - alonso.jasl+dev@gmail.com
