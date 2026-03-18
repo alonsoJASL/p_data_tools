@@ -12,6 +12,8 @@ dist/
 .vscode/
 PYCEMRG_TEST_CONFIGS
 
+**/__pycache__/
+
 data/
 models/
 

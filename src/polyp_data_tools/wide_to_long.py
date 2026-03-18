@@ -153,6 +153,7 @@ def transform_to_long_format(
     df: pd.DataFrame,
     subject_col: str,
     column_groups: List[PolypColumnGroup],
+    preserve_cols: Optional[List[str]] = None,
     invalid_markers: List[str] = ['.b', '.h', '.n']
 ) -> pd.DataFrame:
     """
@@ -167,19 +168,30 @@ def transform_to_long_format(
         df: Wide-format DataFrame
         subject_col: Name of subject ID column
         column_groups: List of PolypColumnGroup objects
+        preserve_cols: Additional subject-level columns to preserve (e.g., randomizationGroup)
         invalid_markers: Markers for invalid/missing polyps
     
     Returns:
-        Long-format DataFrame with columns: [subject_col, polyp_id, info_cols...]
+        Long-format DataFrame with columns: [subject_col, polyp_id, preserve_cols..., info_cols...]
     """
     if not column_groups:
         raise ValueError("No column groups provided for transformation")
+    
+    if preserve_cols is None:
+        preserve_cols = []
+    
+    # Validate that preserve_cols exist in dataframe
+    missing_preserve = [col for col in preserve_cols if col not in df.columns]
+    if missing_preserve:
+        logger.warning(f"Preserve columns not found in dataframe: {missing_preserve}")
+        preserve_cols = [col for col in preserve_cols if col in df.columns]
     
     long_dfs = []
     
     for group in column_groups:
         # Extract relevant columns for this polyp
-        cols_to_extract = [subject_col, group.polyp_id_col] + group.info_columns
+        # Order: subject_col, polyp_id_col, preserve_cols, info_columns
+        cols_to_extract = [subject_col, group.polyp_id_col] + preserve_cols + group.info_columns
         
         # Ensure all columns exist
         missing_cols = [c for c in cols_to_extract if c not in df.columns]

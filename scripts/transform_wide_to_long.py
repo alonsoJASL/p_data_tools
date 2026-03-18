@@ -68,10 +68,18 @@ def main(args) -> None:
     
     # Transform to long format
     logger.info("=== Transforming to long format ===")
+    
+    # Parse preserve columns (comma-separated)
+    preserve_cols = []
+    if args.preserve_cols:
+        preserve_cols = [col.strip() for col in args.preserve_cols.split(',')]
+        logger.info(f"Preserving columns: {preserve_cols}")
+    
     long_df = transform_to_long_format(
         df,
         subject_col=args.subject_col,
         column_groups=column_groups,
+        preserve_cols=preserve_cols,
         invalid_markers=['.b', '.h', '.n']
     )
     
@@ -143,6 +151,12 @@ if __name__ == "__main__":
         "--max-polyps",
         type=int,
         help="Maximum number of polyps to process (default: auto-detect all)"
+    )
+    parser.add_argument(
+        "--preserve-cols",
+        type=str,
+        default="randomizationGroup",
+        help="Comma-separated list of subject-level columns to preserve (default: randomizationGroup)"
     )
     
     args = parser.parse_args()
