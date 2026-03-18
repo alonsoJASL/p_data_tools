@@ -1,5 +1,3 @@
-# src/polyp_data_tools/merge_ops.py
-
 """
 Multi-dataframe merging operations with duplicate column handling and warnings.
 Stateless logic layer - no I/O.
@@ -212,16 +210,38 @@ def add_dropout_info(
         df: Main DataFrame
         study_exit_df: StudyExit DataFrame
         subject_col: Subject ID column name
-        dropout_indicator_col: Column indicating dropout status (e.g., 'O')
-        dropout_info_cols: Columns to extract for dropouts (e.g., ['P', 'Q', 'R', 'S', 'T', 'U'])
-                          If None, defaults to P:U
+        dropout_indicator_col: Column indicating dropout status (name or Excel position like 'O')
+        dropout_info_cols: Columns to extract for dropouts (names or Excel positions like ['P', 'Q', ...])
+                          If None, defaults to columns 15-20 (Excel P:U)
     
     Returns:
         DataFrame with dropout info added
     """
     if dropout_info_cols is None:
-        # Default to columns P through U
-        dropout_info_cols = ['P', 'Q', 'R', 'S', 'T', 'U']
+        # Default to columns P through U (Excel positions 15-20, 0-indexed 15-20)
+        # If column names not provided, try to use positions
+        dropout_info_cols = []
+        if len(study_exit_df.columns) > 20:
+            dropout_info_cols = study_exit_df.columns[15:21].tolist()
+        else:
+            logger.warning("StudyExit has fewer columns than expected for dropout info")
+    
+    # Handle dropout indicator column - try name first, then position
+    if dropout_indicator_col not in study_exit_df.columns:
+        # Try to interpret as Excel column position (e.g., 'O' = position 14)
+        if len(dropout_indicator_col) == 1 and dropout_indicator_col.isalpha():
+            from polyp_data_tools.excel_ops import excel_col_to_index
+            col_idx = excel_col_to_index(dropout_indicator_col)
+            if col_idx < len(study_exit_df.columns):
+                dropout_indicator_col = study_exit_df.columns[col_idx]
+                logger.info(f"Using column at position {col_idx}: '{dropout_indicator_col}'")
+            else:
+                logger.error(f"Column position {dropout_indicator_col} out of range")
+                return df
+        else:
+            logger.error(f"Dropout indicator column '{dropout_indicator_col}' not found")
+            logger.error(f"Available columns: {study_exit_df.columns.tolist()}")
+            return df
     
     # Filter StudyExit to only dropouts
     dropout_mask = study_exit_df[dropout_indicator_col].astype(str).str.lower() == 'yes'

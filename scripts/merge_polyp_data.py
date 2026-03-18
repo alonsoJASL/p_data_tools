@@ -112,12 +112,15 @@ def main(args) -> None:
     
     # Add dropout info from StudyExit
     logger.info("=== Adding dropout information ===")
+    logger.info(f"StudyExit columns: {study_exit_df.columns.tolist()}")
+    logger.info(f"Looking for dropout indicator at column: {args.dropout_indicator_col}")
+    
     merged_df = add_dropout_info(
         merged_df,
         study_exit_df,
         subject_col=args.subject_col,
-        dropout_indicator_col='O',
-        dropout_info_cols=['P', 'Q', 'R', 'S', 'T', 'U']
+        dropout_indicator_col=args.dropout_indicator_col,
+        dropout_info_cols=None  # Will auto-detect columns 15-20 (P:U)
     )
     
     # Generate warnings for mismatches
@@ -238,6 +241,12 @@ if __name__ == "__main__":
         type=int,
         default=0,
         help="Row index to use as column headers for StudyExit (0-indexed)"
+    )
+    parser.add_argument(
+        "--dropout-indicator-col",
+        type=str,
+        default="O",
+        help="Column name or Excel position (e.g., 'O') for dropout indicator in StudyExit"
     )
     
     args = parser.parse_args()
