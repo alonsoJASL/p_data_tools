@@ -138,61 +138,80 @@ def merge_on_composite_key(
     return merged
 
 
+def build_composite_key_set(
+    df: pd.DataFrame,
+    subject_col: str,
+    polyp_col: str,
+) -> Set[str]:
+    """
+    Build the set of composite keys ('subjectId::polypId') from a DataFrame.
+
+    Uses the same raw-string format as merge_on_composite_key — no polyp ID
+    normalisation is applied. Use this when you need a key set to compare
+    against the keys produced by that merge.
+
+    Args:
+        df: DataFrame containing subject and polyp columns
+        subject_col: Subject ID column name
+        polyp_col: Polyp ID column name
+
+    Returns:
+        Set of 'subject::polyp' strings
+    """
+    return set(
+        df[subject_col].astype(str) + '::' + df[polyp_col].astype(str)
+    )
+
+
 def generate_mismatch_warnings(
     df: pd.DataFrame,
     duplicate_cols: Dict[str, List[str]],
-    key_col: str
 ) -> pd.DataFrame:
     """
     Generate warnings for rows where duplicate columns have mismatched values.
-    
+
+    Adds two columns to the DataFrame:
+      - column_value_mismatch: semicolon-separated list of "<col>: A vs B" for
+        each duplicate column whose non-null values differ across suffixed variants.
+      - duplicate_column_names: semicolon-separated list of all duplicate column
+        names with their source sheets, regardless of whether values match.
+
     Args:
         df: Merged DataFrame (may have suffixed duplicate columns)
         duplicate_cols: Dict of column -> list of source dataframes
-        key_col: Key column (typically subject ID or composite key)
-    
+
     Returns:
         DataFrame with warning columns added
     """
-    warning_cols = {
-        'subject_missing_in_sheets': [],
-        'column_value_mismatch': [],
-        'duplicate_column_names': []
-    }
-    
-    for idx, row in df.iterrows():
-        subject_missing = []
+    value_mismatch_col = []
+    duplicate_names_col = []
+
+    for _, row in df.iterrows():
         value_mismatches = []
         duplicate_names = []
-        
-        # Check for duplicate columns
+
         for col, sources in duplicate_cols.items():
             if len(sources) > 1:
                 duplicate_names.append(f"{col} ({', '.join(sources)})")
-                
-                # Check if values mismatch across suffixed versions
-                # Base column name + suffixed versions
+
                 col_variants = [col] + [f"{col}_{src}" for src in sources[1:]]
                 existing_variants = [v for v in col_variants if v in df.columns]
-                
+
                 if len(existing_variants) > 1:
                     values = [row[v] for v in existing_variants if pd.notna(row[v])]
                     unique_values = set(str(v) for v in values)
-                    
+
                     if len(unique_values) > 1:
                         value_mismatches.append(
                             f"{col}: {' vs '.join(unique_values)}"
                         )
-        
-        # Compile warnings for this row
-        warning_cols['subject_missing_in_sheets'].append('')  # Populated later if needed
-        warning_cols['column_value_mismatch'].append('; '.join(value_mismatches) if value_mismatches else '')
-        warning_cols['duplicate_column_names'].append('; '.join(duplicate_names) if duplicate_names else '')
-    
-    # Add warning columns to dataframe
-    for col_name, values in warning_cols.items():
-        df[col_name] = values
-    
+
+        value_mismatch_col.append('; '.join(value_mismatches) if value_mismatches else '')
+        duplicate_names_col.append('; '.join(duplicate_names) if duplicate_names else '')
+
+    df['column_value_mismatch'] = value_mismatch_col
+    df['duplicate_column_names'] = duplicate_names_col
+
     return df
 
 

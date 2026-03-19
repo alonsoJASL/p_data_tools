@@ -18,3 +18,6 @@ data/
 models/
 
 .DS_Store
+
+CLAUDE.md
+.claude/

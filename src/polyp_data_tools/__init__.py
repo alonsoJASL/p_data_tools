@@ -35,6 +35,7 @@ from polyp_data_tools.wide_to_long import (
 )
 
 from polyp_data_tools.merge_ops import (
+    build_composite_key_set,
     detect_duplicate_columns,
     merge_dataframes_on_key,
     merge_on_composite_key,
@@ -69,6 +70,7 @@ __all__ = [
     "filter_invalid_entries",
     "transform_to_long_format",
     # Merge operations
+    "build_composite_key_set",
     "detect_duplicate_columns",
     "merge_dataframes_on_key",
     "merge_on_composite_key",
